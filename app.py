@@ -75,7 +75,7 @@ def set_custom_style():
 
 set_custom_style()
 
-MODEL_DIR = "misid07/depression"  # <-- This is now pointing to Hugging Face
+MODEL_DIR = "mist01/depression"  # <-- This is now pointing to Hugging Face
 DATA_FILE = "go_emotions_dataset.csv"
 
 EMOTION_LABELS = [
