@@ -75,7 +75,7 @@ def set_custom_style():
 
 set_custom_style()
 
-MODEL_DIR = "mist01/depression"
+MODEL_DIR = "misid07/depression"  # <-- This is now pointing to Hugging Face
 DATA_FILE = "go_emotions_dataset.csv"
 
 EMOTION_LABELS = [
@@ -106,29 +106,40 @@ def compute_metrics(eval_pred):
     return {"accuracy": acc, "f1": f1}
 
 
+# ---
+# --- THIS IS THE CORRECTED FUNCTION ---
+# ---
 @st.cache_resource
 def load_model_and_pipeline():
-    """Load the trained model and tokenizer once."""
+    """Load the trained model and tokenizer once from Hugging Face."""
     print(f"Cache miss: Loading model from {MODEL_DIR}...")
-    if not os.path.exists(MODEL_DIR):
-        st.error(f"Fatal Error: Model not found at {MODEL_DIR}")
-        return None, None
+    
+    try:
+        # This will download the model from your Hugging Face repo
+        model = AutoModelForSequenceClassification.from_pretrained(
+            MODEL_DIR, id2label=id2label, label2id=label2id
+        )
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
+    
+    except Exception as e:
+        # If it fails, show an error and return 3 None values
+        st.error(f"Fatal Error: Could not load model from '{MODEL_DIR}'. Error: {e}")
+        return None, None, None # <-- FIX 1: Returns 3 values on failure
 
-    model = AutoModelForSequenceClassification.from_pretrained(
-        MODEL_DIR, id2label=id2label, label2id=label2id
-    )
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
-
+    # Create the pipeline
     pipe = pipeline(
         "text-classification",
         model=model,
         tokenizer=tokenizer,
-        device=0 if torch.cuda.is_available() else -1,
-        return_all_scores=True  # --- NEW: Required for LIME
+        device=-1, # <-- FIX 2: Force CPU (-1) for Streamlit Cloud
+        return_all_scores=True 
     )
 
     print("✅ Model and pipeline loaded successfully.")
-    return model, tokenizer, pipe
+    return model, tokenizer, pipe # <-- Returns 3 values on success
+# ---
+# --- END OF CORRECTED FUNCTION ---
+# ---
 
 
 # --- NEW: LIME Explainer Function ---
@@ -350,7 +361,7 @@ with st.spinner("Loading model and utilities..."):
 # --- Tab 1: Analyzer (MODIFIED) ---
 with tab1:
     if classifier_pipeline is None:
-        st.error("Model failed to load. Check your model path.")
+        st.error("Model failed to load. Please verify the model path or check the logs.")
     else:
         st.header("Text Analyzer")
 
@@ -431,7 +442,7 @@ with tab1:
                         st.stop()
                 else:  # txt file
                     texts = file_content.decode('utf-8').splitlines()
-                    texts = [line.strip() for line in lines if line.strip()]
+                    texts = [line.strip() for line in texts if line.strip()] # Corrected this line
 
                 if not texts:
                     st.warning("No valid text found in the file.")
@@ -518,43 +529,47 @@ with tab3:
     if model and tokenizer:
         with st.spinner("Evaluating model and getting predictions..."):
             tokenized_test = load_and_prep_test_data(tokenizer)
+            
+            # Check if test data loaded successfully
+            if tokenized_test:
+                results = run_evaluation(model, tokenized_test)
+                raw_predictions = get_predictions(model, tokenized_test)
+                y_true = raw_predictions.label_ids
+                y_pred = np.argmax(raw_predictions.predictions, axis=-1)
 
-            results = run_evaluation(model, tokenized_test)
-            raw_predictions = get_predictions(model, tokenized_test)
-            y_true = raw_predictions.label_ids
-            y_pred = np.argmax(raw_predictions.predictions, axis=-1)
+                accuracy = results.get("eval_accuracy", 0)
+                f1 = results.get("eval_f1", 0)
 
-        accuracy = results.get("eval_accuracy", 0)
-        f1 = results.get("eval_f1", 0)
+                col1, col2 = st.columns(2)
+                col1.metric("Accuracy", f"{accuracy * 100:.2f}%")
+                col2.metric("F1-Score", f"{f1 * 100:.2f}%")
 
-        col1, col2 = st.columns(2)
-        col1.metric("Accuracy", f"{accuracy * 100:.2f}%")
-        col2.metric("F1-Score", f"{f1 * 100:.2f}%")
+                st.info(
+                    """
+                    **F1-Score** is the main reliability metric for this model.  
+                    It balances recall (catching true depressive samples) and precision (avoiding false positives).  
+                    The 8-epoch model achieved slightly better generalization and recall compared to 3-epochs.
+                    """
+                )
 
-        st.info(
-            """
-            **F1-Score** is the main reliability metric for this model.  
-            It balances recall (catching true depressive samples) and precision (avoiding false positives).  
-            The 8-epoch model achieved slightly better generalization and recall compared to 3-epochs.
-            """
-        )
+                st.markdown("---")
+                st.subheader("Confusion Matrix")
 
-        st.markdown("---")
-        st.subheader("Confusion Matrix")
+                cm = confusion_matrix(y_true, y_pred)
+                labels = ["NOT_DEPRESSED_PROXY", "DEPRESSED_PROXY"]
 
-        cm = confusion_matrix(y_true, y_pred)
-        labels = ["NOT_DEPRESSED_PROXY", "DEPRESSED_PROXY"]
-
-        fig, ax = plt.subplots(figsize=(6, 4))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax,
-                    xticklabels=labels, yticklabels=labels)
-        ax.set_xlabel("Predicted Label")
-        ax.set_ylabel("True Label")
-        ax.set_title("Model Confusion Matrix")
-        st.pyplot(fig)
+                fig, ax = plt.subplots(figsize=(6, 4))
+                sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax,
+                            xticklabels=labels, yticklabels=labels)
+                ax.set_xlabel("Predicted Label")
+                ax.set_ylabel("True Label")
+                ax.set_title("Model Confusion Matrix")
+                st.pyplot(fig)
+            else:
+                st.error("Could not load test data for evaluation. Check if DATA_FILE is on GitHub.")
 
     else:
-        st.error("Model not loaded. Please verify model path.")
+        st.error("Model not loaded. Evaluation cannot be performed.")
 
 # --- Tab 4: About This Model (MODIFIED) ---
 with tab4:
@@ -591,7 +606,7 @@ with tab4:
         * fear
         * nervousness
         * disgust
-
+        
         The **`NOT_DEPRESSED_PROXY`** (Label 0) is assigned to all other texts.
         """
     )
@@ -607,7 +622,7 @@ with tab4:
         with st.expander("Click to view sample of **NOT_DEPRESSED_PROXY** texts (Label 0)"):
             st.dataframe(not_proxy_sample, use_container_width=True)
     else:
-        st.warning("Could not load data samples for viewing.")
+        st.warning("Could not load data samples for viewing. Check if DATA_FILE is on GitHub.")
 
     st.warning(
         """
@@ -644,7 +659,7 @@ with tab5:
             - **Crisis Text Line**: Text "HOME" to 741741.
         - **United Kingdom 🇬🇧**:
             - **Samaritans**: Call 116 123 (free, 24/7).
-            - **Shout**: Text "SHOUT" to 85258.
+            - **Shout**: Text "SHOUT" to 852858.
         - **Canada 🇨🇦**:
             - **Talk Suicide Canada**: Call 1.833.456.4566 (or 45645 by text, 4 PM - 12 AM ET).
             - **Kids Help Phone**: Call 1-800-668-6868 or text "CONNECT" to 686868.
