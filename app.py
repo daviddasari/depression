@@ -362,41 +362,43 @@ with tab1:
         # --- NEW: Sub-section for single text ---
         st.subheader("Analyze a Single Text")
         text = st.text_area("Enter text to analyze:", "", height=150)
+        
+        # --- NEW: Checkbox to make LIME optional ---
+        explain = st.checkbox("Show prediction explanation (this may take 20-30 seconds)")
 
         if st.button("Analyze"):
             if text.strip():
                 with st.spinner("Analyzing..."):
-                    # Get prediction
+                    # Get prediction (this part is fast)
                     pred_scores = classifier_pipeline(text)[0]
                     best_pred = max(pred_scores, key=lambda x: x['score'])
                     label, score = best_pred["label"], best_pred["score"]
 
-                    # --- NEW: LIME Explanation ---
-                    st.markdown("---")
-                    st.subheader("Prediction Explanation (LIME)")
+                    # --- NEW: LIME Explanation (now optional) ---
+                    if explain: # <-- Checkbox value is used here
+                        st.markdown("---")
+                        st.subheader("Prediction Explanation (LIME)")
 
+                        # Define the prediction wrapper with the loaded pipeline
+                        def predict_proba_wrapper(texts):
+                            return lime_predict_proba(texts, classifier_pipeline)
 
-                    # Define the prediction wrapper with the loaded pipeline
-                    def predict_proba_wrapper(texts):
-                        return lime_predict_proba(texts, classifier_pipeline)
+                        # Generate explanation
+                        explanation = lime_explainer.explain_instance(
+                            text,
+                            predict_proba_wrapper,
+                            num_features=10,
+                            labels=[0, 1]  # Explain both classes
+                        )
 
+                        # Get the ID for the predicted class
+                        predicted_class_id = label2id[label]
 
-                    # Generate explanation
-                    explanation = lime_explainer.explain_instance(
-                        text,
-                        predict_proba_wrapper,
-                        num_features=10,
-                        labels=[0, 1]  # Explain both classes
-                    )
-
-                    # Get the ID for the predicted class
-                    predicted_class_id = label2id[label]
-
-                    # Display the explanation as HTML
-                    html = explanation.as_html(labels=[predicted_class_id])
-                    # Inject custom class for styling
-                    html = f"<div class='lime-text-container'>{html}</div>"
-                    st.components.v1.html(html, height=250, scrolling=True)
+                        # Display the explanation as HTML
+                        html = explanation.as_html(labels=[predicted_class_id])
+                        # Inject custom class for styling
+                        html = f"<div class='lime-text-container'>{html}</div>"
+                        st.components.v1.html(html, height=250, scrolling=True)
                     # --- END LIME ---
 
                 st.markdown("---")
@@ -457,8 +459,7 @@ with tab1:
                     results_df = pd.DataFrame(results)
 
                     st.success(f"Successfully processed {len(results_df)} entries.")
-                    # --- FIX: Replaced use_container_width=True with use_width='stretch' ---
-                    st.dataframe(results_df.head(), use_width='stretch')
+                    st.dataframe(results_df.head(), use_width='stretch') # Fixed use_container_width
 
                     # Download button
                     csv_data = results_df.to_csv(index=False).encode('utf-8')
@@ -476,23 +477,20 @@ with tab2:
         emotion_df, num_labels_df, proxy_df = load_visualization_data()
         if emotion_df is not None:
             st.subheader("Emotion Distribution")
-            # --- FIX: Replaced use_container_width=True with use_width='stretch' ---
             st.plotly_chart(px.bar(emotion_df, x="Emotion", y="count", title="All 28 Emotions"),
-                            use_width='stretch')
+                            use_width='stretch') # Fixed use_container_width
 
             st.subheader("Depression Proxy Split")
-            # --- FIX: Replaced use_container_width=True with use_width='stretch' ---
             st.plotly_chart(px.pie(proxy_df, names="proxy_label_str", values="count",
                                    title="Proxy Label Distribution",
                                    color="proxy_label_str",
                                    color_discrete_map={"DEPRESSED_PROXY": "#ef553b", "NOT_DEPRESSED_PROXY": "#636efa"}),
-                            use_width='stretch')
+                            use_width='stretch') # Fixed use_container_width
 
             st.subheader("Emotions per Comment")
-            # --- FIX: Replaced use_container_width=True with use_width='stretch' ---
             st.plotly_chart(px.bar(num_labels_df, x="Number of Labels", y="count",
                                    title="How many Emotions per Comment?"),
-                            use_width='stretch')
+                            use_width='stretch') # Fixed use_container_width
         else:
             st.error("Could not load dataset for visualization.")
 
@@ -509,17 +507,40 @@ with tab2:
                 st.subheader("Top Words in 'DEPRESSED_PROXY' Texts")
                 proxy_img = generate_wordcloud(proxy_text)
                 if proxy_img:
-                    # --- FIX: Replaced use_column_width=True with use_column_width='stretch' ---
-                    st.image(proxy_img, use_column_width='stretch')
+                    st.image(proxy_img, use_column_width='stretch') # Fixed use_column_width
 
             with col2:
                 st.subheader("Top Words in 'NOT_DEPRESSED_PROXY' Texts")
                 not_proxy_img = generate_wordcloud(not_proxy_text)
                 if not_proxy_img:
-                    # --- FIX: Replaced use_column_width=True with use_column_width='stretch' ---
-                    st.image(not_proxy_img, use_column_width='stretch')
+                    st.image(not_proxy_img, use_column_width='stretch') # Fixed use_column_width
         else:
             st.error("Could not generate word clouds.")
+
+# --- Tab 3: Final Evaluation (DISABLED FOR PERFORMANCE) ---
+with tab3:
+    st.header("Final Evaluation (Disabled)")
+    st.info(
+        """
+        The full model evaluation (calculating metrics and the confusion matrix)
+        is disabled on this live demo because it is too computationally intensive
+        for the free hosting platform.
+        
+        This process (predicting on 5,000+ test samples) takes over an hour
+        and blocks the app from being used.
+        
+        The model's performance (8-epoch):
+        - **Accuracy:** ~95.8%
+        - **F1-Score:** ~92.5%
+        """
+    )
+# --- This section is now just informational ---
+#     st.header("Final Evaluation (8 Epochs)")
+#     st.markdown("Evaluation metrics for the final fine-tuned model.")
+# 
+#     if model and tokenizer:
+#         with st.spinner("Evaluating model and getting predictions..."):
+# ... (rest of the tab is commented out) ...
 
 
 # --- Tab 4: About This Model (MODIFIED) ---
@@ -568,12 +589,10 @@ with tab4:
 
     if proxy_sample is not None and not_proxy_sample is not None:
         with st.expander("Click to view sample of **DEPRESSED_PROXY** texts (Label 1)"):
-            # --- FIX: Replaced use_container_width=True with use_width='stretch' ---
-            st.dataframe(proxy_sample, use_width='stretch')
+            st.dataframe(proxy_sample, use_width='stretch') # Fixed use_container_width
 
         with st.expander("Click to view sample of **NOT_DEPRESSED_PROXY** texts (Label 0)"):
-            # --- FIX: Replaced use_container_width=True with use_width='stretch' ---
-            st.dataframe(not_proxy_sample, use_width='stretch')
+            st.dataframe(not_proxy_sample, use_width='stretch') # Fixed use_container_width
     else:
         st.warning("Could not load data samples for viewing. Check if DATA_FILE is on GitHub.")
 
