@@ -1,0 +1,8 @@
+streamlit
+transformers>=4.40
+datasets>=2.14
+torch
+pandas
+numpy
+scikit-learn
+plotly
