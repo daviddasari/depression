@@ -75,7 +75,7 @@ def set_custom_style():
 
 set_custom_style()
 
-MODEL_DIR = "./results-depression-extended"
+MODEL_DIR = "misid07/depression"
 DATA_FILE = "go_emotions_dataset.csv"
 
 EMOTION_LABELS = [
