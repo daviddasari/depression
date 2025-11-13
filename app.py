@@ -106,9 +106,6 @@ def compute_metrics(eval_pred):
     return {"accuracy": acc, "f1": f1}
 
 
-# ---
-# --- THIS IS THE CORRECTED FUNCTION ---
-# ---
 @st.cache_resource
 def load_model_and_pipeline():
     """Load the trained model and tokenizer once from Hugging Face."""
@@ -124,22 +121,19 @@ def load_model_and_pipeline():
     except Exception as e:
         # If it fails, show an error and return 3 None values
         st.error(f"Fatal Error: Could not load model from '{MODEL_DIR}'. Error: {e}")
-        return None, None, None # <-- FIX 1: Returns 3 values on failure
+        return None, None, None # <-- Returns 3 values on failure
 
     # Create the pipeline
     pipe = pipeline(
         "text-classification",
         model=model,
         tokenizer=tokenizer,
-        device=-1, # <-- FIX 2: Force CPU (-1) for Streamlit Cloud
+        device=-1, # <-- Force CPU (-1) for Streamlit Cloud
         return_all_scores=True 
     )
 
     print("✅ Model and pipeline loaded successfully.")
-    return model, tokenizer, pipe # <-- Returns 3 values on success
-# ---
-# --- END OF CORRECTED FUNCTION ---
-# ---
+    return model, tokenizer, pipe
 
 
 # --- NEW: LIME Explainer Function ---
@@ -442,7 +436,7 @@ with tab1:
                         st.stop()
                 else:  # txt file
                     texts = file_content.decode('utf-8').splitlines()
-                    texts = [line.strip() for line in texts if line.strip()] # Corrected this line
+                    texts = [line.strip() for line in texts if line.strip()]
 
                 if not texts:
                     st.warning("No valid text found in the file.")
@@ -463,7 +457,8 @@ with tab1:
                     results_df = pd.DataFrame(results)
 
                     st.success(f"Successfully processed {len(results_df)} entries.")
-                    st.dataframe(results_df.head(), use_container_width=True)
+                    # --- FIX: Replaced use_container_width=True with use_width='stretch' ---
+                    st.dataframe(results_df.head(), use_width='stretch')
 
                     # Download button
                     csv_data = results_df.to_csv(index=False).encode('utf-8')
@@ -481,20 +476,23 @@ with tab2:
         emotion_df, num_labels_df, proxy_df = load_visualization_data()
         if emotion_df is not None:
             st.subheader("Emotion Distribution")
+            # --- FIX: Replaced use_container_width=True with use_width='stretch' ---
             st.plotly_chart(px.bar(emotion_df, x="Emotion", y="count", title="All 28 Emotions"),
-                            use_container_width=True)
+                            use_width='stretch')
 
             st.subheader("Depression Proxy Split")
+            # --- FIX: Replaced use_container_width=True with use_width='stretch' ---
             st.plotly_chart(px.pie(proxy_df, names="proxy_label_str", values="count",
                                    title="Proxy Label Distribution",
                                    color="proxy_label_str",
                                    color_discrete_map={"DEPRESSED_PROXY": "#ef553b", "NOT_DEPRESSED_PROXY": "#636efa"}),
-                            use_container_width=True)
+                            use_width='stretch')
 
             st.subheader("Emotions per Comment")
+            # --- FIX: Replaced use_container_width=True with use_width='stretch' ---
             st.plotly_chart(px.bar(num_labels_df, x="Number of Labels", y="count",
                                    title="How many Emotions per Comment?"),
-                            use_container_width=True)
+                            use_width='stretch')
         else:
             st.error("Could not load dataset for visualization.")
 
@@ -511,13 +509,15 @@ with tab2:
                 st.subheader("Top Words in 'DEPRESSED_PROXY' Texts")
                 proxy_img = generate_wordcloud(proxy_text)
                 if proxy_img:
-                    st.image(proxy_img, use_column_width=True)
+                    # --- FIX: Replaced use_column_width=True with use_column_width='stretch' ---
+                    st.image(proxy_img, use_column_width='stretch')
 
             with col2:
                 st.subheader("Top Words in 'NOT_DEPRESSED_PROXY' Texts")
                 not_proxy_img = generate_wordcloud(not_proxy_text)
                 if not_proxy_img:
-                    st.image(not_proxy_img, use_column_width=True)
+                    # --- FIX: Replaced use_column_width=True with use_column_width='stretch' ---
+                    st.image(not_proxy_img, use_column_width='stretch')
         else:
             st.error("Could not generate word clouds.")
 
@@ -617,10 +617,12 @@ with tab4:
 
     if proxy_sample is not None and not_proxy_sample is not None:
         with st.expander("Click to view sample of **DEPRESSED_PROXY** texts (Label 1)"):
-            st.dataframe(proxy_sample, use_container_width=True)
+            # --- FIX: Replaced use_container_width=True with use_width='stretch' ---
+            st.dataframe(proxy_sample, use_width='stretch')
 
         with st.expander("Click to view sample of **NOT_DEPRESSED_PROXY** texts (Label 0)"):
-            st.dataframe(not_proxy_sample, use_container_width=True)
+            # --- FIX: Replaced use_container_width=True with use_width='stretch' ---
+            st.dataframe(not_proxy_sample, use_width='stretch')
     else:
         st.warning("Could not load data samples for viewing. Check if DATA_FILE is on GitHub.")
 
