@@ -521,55 +521,6 @@ with tab2:
         else:
             st.error("Could not generate word clouds.")
 
-# --- Tab 3: Final Evaluation ---
-with tab3:
-    st.header("Final Evaluation (8 Epochs)")
-    st.markdown("Evaluation metrics for the final fine-tuned model.")
-
-    if model and tokenizer:
-        with st.spinner("Evaluating model and getting predictions..."):
-            tokenized_test = load_and_prep_test_data(tokenizer)
-            
-            # Check if test data loaded successfully
-            if tokenized_test:
-                results = run_evaluation(model, tokenized_test)
-                raw_predictions = get_predictions(model, tokenized_test)
-                y_true = raw_predictions.label_ids
-                y_pred = np.argmax(raw_predictions.predictions, axis=-1)
-
-                accuracy = results.get("eval_accuracy", 0)
-                f1 = results.get("eval_f1", 0)
-
-                col1, col2 = st.columns(2)
-                col1.metric("Accuracy", f"{accuracy * 100:.2f}%")
-                col2.metric("F1-Score", f"{f1 * 100:.2f}%")
-
-                st.info(
-                    """
-                    **F1-Score** is the main reliability metric for this model.  
-                    It balances recall (catching true depressive samples) and precision (avoiding false positives).  
-                    The 8-epoch model achieved slightly better generalization and recall compared to 3-epochs.
-                    """
-                )
-
-                st.markdown("---")
-                st.subheader("Confusion Matrix")
-
-                cm = confusion_matrix(y_true, y_pred)
-                labels = ["NOT_DEPRESSED_PROXY", "DEPRESSED_PROXY"]
-
-                fig, ax = plt.subplots(figsize=(6, 4))
-                sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax,
-                            xticklabels=labels, yticklabels=labels)
-                ax.set_xlabel("Predicted Label")
-                ax.set_ylabel("True Label")
-                ax.set_title("Model Confusion Matrix")
-                st.pyplot(fig)
-            else:
-                st.error("Could not load test data for evaluation. Check if DATA_FILE is on GitHub.")
-
-    else:
-        st.error("Model not loaded. Evaluation cannot be performed.")
 
 # --- Tab 4: About This Model (MODIFIED) ---
 with tab4:
